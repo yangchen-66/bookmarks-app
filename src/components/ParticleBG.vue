@@ -7,7 +7,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import * as THREE from 'three'
 
 const canvasRef = ref(null)
-let scene, camera, renderer, particles, mouseX, mouseY
+let scene, camera, renderer, particleGroup, mouseX, mouseY
 let animationId
 
 // ── Three.js 初始化 ──
@@ -34,76 +34,63 @@ function init() {
   renderer.setSize(width, height)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
-  // ── 粒子系统 ──
-  const count = 400
-  const positions = new Float32Array(count * 3)
-  const sizes = new Float32Array(count)
-  const speeds = new Float32Array(count)
+  // ── 粒子组（统一旋转 + 鼠标视差） ──
+  particleGroup = new THREE.Group()
+  scene.add(particleGroup)
 
-  for (let i = 0; i < count; i++) {
-    // 分布在球体空间内
-    const radius = 15 + Math.random() * 12
-    const theta = Math.random() * Math.PI * 2
-    const phi = Math.acos(2 * Math.random() - 1)
-
-    positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
-    positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
-    positions[i * 3 + 2] = radius * Math.cos(phi)
-
-    sizes[i] = 0.5 + Math.random() * 1.5
-    speeds[i] = 0.1 + Math.random() * 0.3
+  // ── 工具：生成圆形辉光纹理 ──
+  function makeGlowTexture(r, g, b) {
+    const c = document.createElement('canvas')
+    c.width = 32; c.height = 32
+    const ctx = c.getContext('2d')
+    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16)
+    grad.addColorStop(0, `rgba(${r},${g},${b},0.8)`)
+    grad.addColorStop(0.3, `rgba(${r},${g},${b},0.3)`)
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`)
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, 32, 32)
+    return new THREE.CanvasTexture(c)
   }
 
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1))
-
-  // 粒子纹理：圆形渐变
-  const textureCanvas = document.createElement('canvas')
-  textureCanvas.width = 32
-  textureCanvas.height = 32
-  const ctx = textureCanvas.getContext('2d')
-  const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16)
-  gradient.addColorStop(0, 'rgba(212, 168, 83, 0.8)')
-  gradient.addColorStop(0.3, 'rgba(212, 168, 83, 0.3)')
-  gradient.addColorStop(1, 'rgba(212, 168, 83, 0)')
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, 32, 32)
-  const texture = new THREE.CanvasTexture(textureCanvas)
-
-  const material = new THREE.PointsMaterial({
-    size: 0.6,
-    map: texture,
-    blending: THREE.AdditiveBlending,
-    transparent: true,
-    opacity: 0.6,
-    color: new THREE.Color('#d4a853'),
-    depthWrite: false,
-  })
-
-  particles = new THREE.Points(geometry, material)
-  scene.add(particles)
-
-  // ── 额外连线粒子（少量，产生星点效果） ──
-  const starCount = 200
-  const starPos = new Float32Array(starCount * 3)
-  for (let i = 0; i < starCount; i++) {
-    starPos[i * 3] = (Math.random() - 0.5) * 60
-    starPos[i * 3 + 1] = (Math.random() - 0.5) * 60
-    starPos[i * 3 + 2] = (Math.random() - 0.5) * 60 - 10
+  // ── 辅助：创建粒子系统 ──
+  function createParticles(count, spreadMin, spreadMax, size, color, opacity, texColor) {
+    const pos = new Float32Array(count * 3)
+    for (let i = 0; i < count; i++) {
+      const r = spreadMin + Math.random() * (spreadMax - spreadMin)
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.acos(2 * Math.random() - 1)
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta)
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
+      pos[i * 3 + 2] = r * Math.cos(phi)
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    const mat = new THREE.PointsMaterial({
+      size,
+      map: makeGlowTexture(texColor[0], texColor[1], texColor[2]),
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity,
+      color: new THREE.Color(color),
+      depthWrite: false,
+      sizeAttenuation: true,
+    })
+    const pts = new THREE.Points(geo, mat)
+    particleGroup.add(pts)
+    return pts
   }
-  const starGeo = new THREE.BufferGeometry()
-  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3))
-  const starMat = new THREE.PointsMaterial({
-    size: 0.15,
-    color: '#ffffff',
-    transparent: true,
-    opacity: 0.3,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  })
-  const stars = new THREE.Points(starGeo, starMat)
-  scene.add(stars)
+
+  // ── 400 金色粒子（主星群） ──
+  createParticles(400, 15, 27, 0.6, '#d4a853', 0.6, [212, 168, 83])
+
+  // ── 200 白色微小星点 ──
+  createParticles(200, 10, 40, 0.15, '#ffffff', 0.3, [255, 255, 255])
+
+  // ── 1500 白色粒子（亮度提升） ──
+  createParticles(1500, 12, 35, 0.3, '#f0f4ff', 0.8, [240, 244, 255])
+
+  // ── 100 红色粒子 ──
+  createParticles(100, 14, 26, 0.5, '#ff4757', 0.6, [255, 71, 87])
 
   // 鼠标位置
   mouseX = 0
@@ -123,14 +110,12 @@ function onMouseMove(event) {
 function animate() {
   animationId = requestAnimationFrame(animate)
 
-  // 粒子缓慢自转
-  if (particles) {
-    particles.rotation.y += 0.001
-    particles.rotation.x += 0.0003
-
-    // 鼠标跟随视差
-    particles.rotation.y += mouseX * 0.002
-    particles.rotation.x += mouseY * 0.001
+  // 粒子组缓慢自转 + 鼠标视差
+  if (particleGroup) {
+    particleGroup.rotation.y += 0.001
+    particleGroup.rotation.x += 0.0003
+    particleGroup.rotation.y += mouseX * 0.002
+    particleGroup.rotation.x += mouseY * 0.001
   }
 
   renderer.render(scene, camera)

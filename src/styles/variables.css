@@ -22,7 +22,14 @@
   --accent-gold-light: #e8c97a;
   --accent-glow: rgba(212, 168, 83, 0.15);
   --accent-blue: #4a7cf7;
-  --accent-red: #e74c5e;
+  --accent-red: #dc3545;
+  --accent-red-glow: rgba(220, 53, 69, 0.25);
+  --accent-silver: #c0c8d4;
+  --accent-silver-light: #dce2ec;
+
+  --particle-white: #f0f4ff;
+  --particle-gold: #e8c97a;
+  --particle-red: #ff4757;
 
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-hover: rgba(255, 255, 255, 0.12);
@@ -154,6 +161,10 @@ body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--bg-glass-border);
+  /* 右侧边缘光效 — 呼应背景暖金光源 */
+  box-shadow:
+    3px 0 20px -8px rgba(212, 168, 83, 0.10),
+    -1px 0 12px -8px rgba(212, 168, 83, 0.03);
 }
 
 /* ── 按钮基础样式 ── */

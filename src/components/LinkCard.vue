@@ -77,7 +77,9 @@ function openLink() {
   background: var(--bg-card-hover);
   border-color: rgba(212, 168, 83, 0.2);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    3px 0 24px -8px rgba(212, 168, 83, 0.13),
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .link-card:active {
